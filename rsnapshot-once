@@ -77,8 +77,8 @@ switch ($environment) {
 			$wakeup_minutes = (time() - intval(`date --date="$wakeup_date" +%s`))/60;
 		}
         break;
-    case default:
-    	echo "Assuming Linux Environment"
+    default:
+    	echo "Assuming Linux Environment";
     	$uptime_minutes = strtok(exec("cat /proc/uptime"), ".")/60;
 		// Get time of resume
 		// http://unix.stackexchange.com/questions/22140/determine-time-of-last-suspend-to-ram
