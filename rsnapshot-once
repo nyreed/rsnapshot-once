@@ -24,6 +24,7 @@
 $opts = getopt("c:");
 
 // General failure	
+
 if (!$opts) {
 	die(
 		 "Usage:\n"
@@ -43,6 +44,52 @@ if (!$opts) {
 		."  0 * * * * {$argv[0]} -c /home/user/.rsnapshot/rsnapshot.home.conf daily\n"
 	);
 }
+ 
+
+$environment = PHP_OS;
+
+//Switch statement to define environment specific uptime / waketime information for MacOS or Linux
+switch ($environment) {
+    case Darwin:
+        echo "Environment is Mac OS\n";
+        date_default_timezone_set("Europe/London");
+        // Get Uptime
+        $kern_boottime = exec("sysctl -n kern.boottime | cut -f4 -d' ' | cut -d',' -f1");
+        $time_now = exec("date +%s");
+        $uptime_minutes = $time_now - $kern_boottime;
+        $uptime_minutes = $uptime_minutes/60;
+		echo "Uptime: $uptime \n";
+		//Get time of resume
+		$kern_waketime = exec("sysctl -n kern.waketime | cut -f4 -d' ' | cut -d',' -f1");
+		if ($kern_waketime != 0) {
+			$wakeup_minutes = $time_now - $kern_waketime;
+			$wakeup_minutes = $wakeup_minutes/60;
+		}
+        break;
+    case Linux:
+        echo "Environment is Linux";
+		$uptime_minutes = strtok(exec("cat /proc/uptime"), ".")/60;
+		// Get time of resume
+		// http://unix.stackexchange.com/questions/22140/determine-time-of-last-suspend-to-ram
+		$wakeup_minutes = 0;
+		$wakeup_date = trim(`egrep 'Running hooks for (resume|thaw)' /var/log/pm-suspend.log | tail -n 1 | sed 's/^\(.*\):.*$/\\1/'`);
+		if (isset($wakeup_date) && $wakeup_date) {
+			$wakeup_minutes = (time() - intval(`date --date="$wakeup_date" +%s`))/60;
+		}
+        break;
+    case default:
+    	echo "Assuming Linux Environment"
+    	$uptime_minutes = strtok(exec("cat /proc/uptime"), ".")/60;
+		// Get time of resume
+		// http://unix.stackexchange.com/questions/22140/determine-time-of-last-suspend-to-ram
+		$wakeup_minutes = 0;
+		$wakeup_date = trim(`egrep 'Running hooks for (resume|thaw)' /var/log/pm-suspend.log | tail -n 1 | sed 's/^\(.*\):.*$/\\1/'`);
+		if (isset($wakeup_date) && $wakeup_date) {
+			$wakeup_minutes = (time() - intval(`date --date="$wakeup_date" +%s`))/60;
+		}
+        break;
+}
+
 
 //print_r($opts);
 
@@ -158,8 +205,7 @@ else {
 logft("Checking delays (minimum 15 minutes since startup/wakeup) ...\n");
 
 // Backup delay (uptime/resumetime + 15 minutes)
-$uptime_minutes = 0;
-$uptime_minutes = strtok(exec("cat /proc/uptime"), ".")/60;
+// $uptime_minutes = $uptime/60;
 
 if ($uptime_minutes) {
 	if ($uptime_minutes < 15) {
@@ -172,25 +218,17 @@ if ($uptime_minutes) {
 	}
 }
 
-// Get time of resume
-// http://unix.stackexchange.com/questions/22140/determine-time-of-last-suspend-to-ram
-$wakeup_minutes = 0;
-$wakeup_date = trim(`egrep 'Running hooks for (resume|thaw)' /var/log/pm-suspend.log | tail -n 1 | sed 's/^\(.*\):.*$/\\1/'`);
-
-if (isset($wakeup_date) && $wakeup_date) {
-	$wakeup_minutes = (time() - intval(`date --date="$wakeup_date" +%s`))/60;
-
-	if ($wakeup_minutes) {
-		if ($wakeup_minutes < 15) {
-			logft("- Computer resume time is ".sprintf("%.1f", $wakeup_minutes)." minutes. NOT ENOUGH. EXITING.\n");
-			logft("## BACKUP ABORTED #######################\n\n");
-			exit;
-		}
-		else {
-			logft("- Computer resume time is ".sprintf("%.1f", $wakeup_minutes)." minutes. THAT'S OKAY.\n");
-		}
+if ($wakeup_minutes) {
+	if ($wakeup_minutes < 15) {
+		logft("- Computer resume time is ".sprintf("%.1f", $wakeup_minutes)." minutes. NOT ENOUGH. EXITING.\n");
+		logft("## BACKUP ABORTED #######################\n\n");
+		exit;
+	}
+	else {
+		logft("- Computer resume time is ".sprintf("%.1f", $wakeup_minutes)." minutes. THAT'S OKAY.\n");
 	}
 }
+
 
 // Get date of newest folder (e.g. weekly.0, daily.0, monthly.0)
 // to figure out if the job needs to run
