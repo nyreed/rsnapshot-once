@@ -58,7 +58,6 @@ switch ($environment) {
         $time_now = exec("date +%s");
         $uptime_minutes = $time_now - $kern_boottime;
         $uptime_minutes = $uptime_minutes/60;
-		echo "Uptime: $uptime \n";
 		//Get time of resume
 		$kern_waketime = exec("sysctl -n kern.waketime | cut -f4 -d' ' | cut -d',' -f1");
 		if ($kern_waketime != 0) {
